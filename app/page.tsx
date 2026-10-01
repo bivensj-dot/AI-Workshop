@@ -1,3 +1,5 @@
+import AuthPanel from "./auth-panel";
+
 export default function Home() {
   const year = new Date().getFullYear();
 
@@ -9,6 +11,11 @@ export default function Home() {
       </header>
 
       <main>
+        <section className="section">
+          <h2>Account</h2>
+          <AuthPanel />
+        </section>
+
         <section className="section">
           <h2>About</h2>
           <p>
