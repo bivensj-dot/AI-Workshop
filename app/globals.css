@@ -161,3 +161,58 @@ main {
   color: #b00020;
   margin: 0;
 }
+
+.task-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.task-form input[type="text"] {
+  flex: 1 1 200px;
+}
+
+.task-form input,
+.task-form select {
+  padding: 0.5rem;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.tasks-heading {
+  margin-top: 1.5rem;
+}
+
+.task-list {
+  list-style: none;
+  padding: 0;
+}
+
+.section .task-list {
+  padding-left: 0;
+}
+
+.task {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.task.done .task-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.skill-label {
+  font-size: 0.85rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  white-space: nowrap;
+}
