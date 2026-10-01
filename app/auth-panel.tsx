@@ -9,6 +9,7 @@ import {
   signUp,
   type Session,
 } from "./supabase-auth";
+import TasksPanel from "./tasks-panel";
 
 export default function AuthPanel() {
   const [session, setSession] = useState<Session | null>(null);
@@ -60,6 +61,8 @@ export default function AuthPanel() {
         <button type="button" onClick={handleLogOut}>
           Log out
         </button>
+        <h2 className="tasks-heading">Study tasks</h2>
+        <TasksPanel session={session} />
       </div>
     );
   }
