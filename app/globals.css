@@ -115,3 +115,77 @@ main {
     padding: 0 1.25rem;
   }
 }
+
+/* ---- Memory Match game ---- */
+.game {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+}
+
+.game-help,
+.game-stats {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* 2 columns on phones */
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.card {
+  min-height: 5.5rem; /* grows taller if the text needs more lines */
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.card-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere; /* wrap long text instead of spilling out */
+  line-height: 1.3;
+}
+
+.card-up {
+  background: #fff;
+  color: var(--text);
+}
+
+.card-matched {
+  background: #e3f3ef;
+  border-color: #2f8f83;
+}
+
+.game-win {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.game-restart {
+  padding: 0.6rem 1.2rem;
+  font: inherit;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+@media (min-width: 481px) {
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
