@@ -216,3 +216,25 @@ main {
   padding: 0 0.6rem;
   white-space: nowrap;
 }
+
+.list-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.list-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.list-bar select {
+  padding: 0.5rem;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}

@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { Session } from "./supabase-auth";
-import { SKILLS, addTask, listTasks, setDone, type Skill, type Task } from "./supabase-tasks";
+import { SKILLS, addList, addTask, listLists, listTasks, setDone, type Skill, type Task, type TaskList } from "./supabase-tasks";
 
 export default function TasksPanel({ session }: { session: Session }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [lists, setLists] = useState<TaskList[]>([]);
+  const [viewListId, setViewListId] = useState("");
+  const [taskListId, setTaskListId] = useState("");
+  const [creatingList, setCreatingList] = useState(false);
+  const [newListName, setNewListName] = useState("");
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [skill, setSkill] = useState<Skill>("Speaking");
@@ -13,19 +18,48 @@ export default function TasksPanel({ session }: { session: Session }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    listTasks(session)
-      .then(setTasks)
+    Promise.all([listLists(session), listTasks(session)])
+      .then(([loadedLists, loadedTasks]) => {
+        setLists(loadedLists);
+        setTasks(loadedTasks);
+        if (loadedLists[0]) {
+          setViewListId(loadedLists[0].id);
+          setTaskListId(loadedLists[0].id);
+        }
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Something went wrong."))
       .finally(() => setLoading(false));
   }, [session]);
 
-  async function handleAdd() {
-    const trimmed = title.trim();
+  function handleViewList(id: string) {
+    setViewListId(id);
+    setTaskListId(id);
+  }
+
+  async function handleAddList() {
+    const trimmed = newListName.trim();
     if (!trimmed) return;
     setError("");
     setBusy(true);
     try {
-      const task = await addTask(session, trimmed, skill);
+      const list = await addList(session, trimmed);
+      setLists((current) => [...current, list]);
+      handleViewList(list.id);
+      setNewListName("");
+      setCreatingList(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    }
+    setBusy(false);
+  }
+
+  async function handleAdd() {
+    const trimmed = title.trim();
+    if (!trimmed || !taskListId) return;
+    setError("");
+    setBusy(true);
+    try {
+      const task = await addTask(session, trimmed, skill, taskListId);
       setTasks((current) => [...current, task]);
       setTitle("");
     } catch (e) {
@@ -44,8 +78,53 @@ export default function TasksPanel({ session }: { session: Session }) {
     }
   }
 
+  const visibleTasks = tasks.filter((t) => t.list_id === viewListId);
+
   return (
     <div>
+      <div className="list-bar">
+        <label>
+          List
+          <select value={viewListId} onChange={(e) => handleViewList(e.target.value)} disabled={lists.length === 0}>
+            {lists.length === 0 && <option value="">No lists yet</option>}
+            {lists.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!creatingList && (
+          <button type="button" onClick={() => setCreatingList(true)}>
+            New list
+          </button>
+        )}
+      </div>
+      {creatingList && (
+        <form
+          className="task-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleAddList();
+          }}
+        >
+          <input
+            type="text"
+            value={newListName}
+            onChange={(e) => setNewListName(e.target.value)}
+            placeholder="List name"
+            aria-label="List name"
+            maxLength={100}
+            required
+          />
+          <button type="submit" disabled={busy}>
+            Save
+          </button>
+          <button type="button" onClick={() => setCreatingList(false)}>
+            Cancel
+          </button>
+        </form>
+      )}
       <form
         className="task-form"
         onSubmit={(e) => {
@@ -68,7 +147,20 @@ export default function TasksPanel({ session }: { session: Session }) {
             </option>
           ))}
         </select>
-        <button type="submit" disabled={busy}>
+        <select
+          value={taskListId}
+          onChange={(e) => setTaskListId(e.target.value)}
+          aria-label="List for new task"
+          disabled={lists.length === 0}
+        >
+          {lists.length === 0 && <option value="">No lists yet</option>}
+          {lists.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+        <button type="submit" disabled={busy || lists.length === 0}>
           Add
         </button>
       </form>
@@ -79,11 +171,13 @@ export default function TasksPanel({ session }: { session: Session }) {
       )}
       {loading ? (
         <p>Loading tasks…</p>
-      ) : tasks.length === 0 ? (
-        <p className="placeholder-note">No tasks yet.</p>
+      ) : lists.length === 0 ? (
+        <p className="placeholder-note">Click New list to create your first list.</p>
+      ) : visibleTasks.length === 0 ? (
+        <p className="placeholder-note">No tasks in this list yet.</p>
       ) : (
         <ul className="task-list">
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <li key={task.id} className={task.done ? "task done" : "task"}>
               <label>
                 <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
