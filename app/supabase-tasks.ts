@@ -13,6 +13,12 @@ export type Task = {
   title: string;
   skill: Skill;
   done: boolean;
+  list_id: string;
+};
+
+export type TaskList = {
+  id: string;
+  name: string;
 };
 
 async function request(path: string, session: Session, init: RequestInit = {}) {
@@ -34,19 +40,31 @@ async function request(path: string, session: Session, init: RequestInit = {}) {
 }
 
 export async function listTasks(session: Session): Promise<Task[]> {
-  return request("tasks?select=id,title,skill,done&order=created_at.asc", session);
+  return request("tasks?select=id,title,skill,done,list_id&order=created_at.asc", session);
 }
 
-export async function addTask(session: Session, title: string, skill: Skill): Promise<Task> {
-  const rows = await request("tasks?select=id,title,skill,done", session, {
+export async function listLists(session: Session): Promise<TaskList[]> {
+  return request("lists?select=id,name&order=created_at.asc", session);
+}
+
+export async function addList(session: Session, name: string): Promise<TaskList> {
+  const rows = await request("lists?select=id,name", session, {
     method: "POST",
-    body: JSON.stringify({ title, skill }),
+    body: JSON.stringify({ name }),
+  });
+  return rows[0];
+}
+
+export async function addTask(session: Session, title: string, skill: Skill, listId: string): Promise<Task> {
+  const rows = await request("tasks?select=id,title,skill,done,list_id", session, {
+    method: "POST",
+    body: JSON.stringify({ title, skill, list_id: listId }),
   });
   return rows[0];
 }
 
 export async function setDone(session: Session, id: string, done: boolean): Promise<Task> {
-  const rows = await request(`tasks?id=eq.${encodeURIComponent(id)}&select=id,title,skill,done`, session, {
+  const rows = await request(`tasks?id=eq.${encodeURIComponent(id)}&select=id,title,skill,done,list_id`, session, {
     method: "PATCH",
     body: JSON.stringify({ done }),
   });
