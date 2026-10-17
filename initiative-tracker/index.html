@@ -7,7 +7,7 @@
 <style>
   :root {
     --bg: #1b1b1f; --panel: #26262c; --line: #3a3a44; --text: #ececf1;
-    --muted: #9a9aa8; --accent: #c9372c; --accent2: #3b82c4; --good: #3f9b5a;
+    --muted: #9a9aa8; --accent: #c9372c; --accent2: #3b82c4; --good: #3f9b5a; --warn: #d9a21b;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -15,7 +15,7 @@
   .layout { display: flex; min-height: 100vh; }
   aside { width: 260px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line);
           padding: 16px 12px; }
-  main { flex: 1; padding: 24px 20px; max-width: 900px; }
+  main { flex: 1; padding: 24px 20px; max-width: 980px; }
   h1 { margin: 0 0 4px; font-size: 1.6rem; }
   h2 { margin: 0 0 10px; font-size: 1rem; }
   .sub { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
@@ -31,19 +31,37 @@
           border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
        color: var(--muted); padding: 8px 6px; border-bottom: 1px solid var(--line); }
-  td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
   tr.current { background: #3a2226; outline: 2px solid var(--accent); outline-offset: -2px; }
-  tr.dead input[type=text] { text-decoration: line-through; opacity: .5; }
-  input, select { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
-          border-radius: 5px; padding: 7px 8px; font-size: .95rem; }
-  input:focus, select:focus { outline: none; border-color: var(--accent2); }
+  tr.dead input[data-f=name] { text-decoration: line-through; opacity: .5; }
+  tr.bloodied .hpcell input { border-color: var(--warn); color: #f0c050; }
+  tr.over { box-shadow: inset 0 3px 0 var(--accent2); }
+  input, select, textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+          border-radius: 5px; padding: 7px 8px; font-size: .95rem; font-family: inherit; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent2); }
   input[type=number] { text-align: center; }
-  .num { width: 70px; } .small { width: 70px; }
+  .num { width: 70px; } .small { width: 78px; }
+  .grip { width: 26px; text-align: center; color: var(--muted); cursor: grab; user-select: none; padding-top: 10px; }
+  .hpcell { position: relative; }
+  .hpcell input { text-align: center; }
+  .maxhp { display: block; text-align: center; color: var(--muted); font-size: .72rem; min-height: 1em; }
   .rowbtns { display: flex; gap: 4px; white-space: nowrap; }
   .rowbtns button { padding: 6px 9px; }
+  .conds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; align-items: center; }
+  .chip { background: #4a3b1c; color: #f0c050; border-radius: 10px; padding: 1px 8px; font-size: .75rem;
+          cursor: pointer; }
+  .chip:hover { background: #6a4a1c; }
+  .condsel { width: auto; padding: 2px 4px; font-size: .75rem; color: var(--muted); }
   .empty { color: var(--muted); text-align: center; padding: 28px; }
   .status { color: var(--good); font-size: .85rem; min-height: 1.2em; margin-top: 10px; }
+  .quick { display: flex; gap: 6px; margin-bottom: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .quick label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; display: block; }
+  .quick .q-name { flex: 1; min-width: 140px; }
+  .quick .q-sm { width: 74px; }
+  .quick input { text-align: left; }
+  textarea { margin-top: 14px; min-height: 90px; resize: vertical; }
+  .noteslabel { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 16px; display: block; }
 
   /* sidebar */
   .sidebtns { display: flex; gap: 6px; margin-bottom: 12px; }
@@ -90,11 +108,20 @@
     <button class="danger" id="delEnc" title="Delete this encounter">Delete</button>
   </div>
 
-  <div class="bar">
+  <div class="quick" id="quick">
+    <div class="q-name"><label for="qName">Name</label><input type="text" id="qName" placeholder="e.g. Goblin"></div>
+    <div class="q-sm"><label for="qQty">Qty</label><input type="number" id="qQty" value="1" min="1" max="50"></div>
+    <div class="q-sm"><label for="qBonus">Init bonus</label><input type="number" id="qBonus" placeholder="0"></div>
+    <div class="q-sm"><label for="qHp">HP</label><input type="number" id="qHp"></div>
+    <div class="q-sm"><label for="qAc">AC</label><input type="number" id="qAc"></div>
     <button class="primary" id="add">+ Add</button>
+  </div>
+
+  <div class="bar">
     <button id="rollAll">Roll all</button>
     <button id="sort">Sort</button>
     <button class="blue" id="next">Next turn</button>
+    <button id="reset" title="Clear initiative, round, and conditions; restore HP to full">Reset encounter</button>
     <button id="export">Export all</button>
     <button id="import">Import</button>
     <button class="danger" id="clear">Clear table</button>
@@ -104,12 +131,16 @@
   <table>
     <thead>
       <tr>
-        <th class="num">Init</th><th>Name</th><th class="small">Bonus</th>
+        <th></th><th class="num">Init</th><th>Name / conditions</th><th class="small">Bonus</th>
         <th class="small">HP</th><th class="small">AC</th><th></th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
   </table>
+
+  <label class="noteslabel" for="notes">Encounter notes</label>
+  <textarea id="notes" placeholder="Terrain, loot, tactics..."></textarea>
+
   <div class="status" id="status"></div>
   <input type="file" id="file" accept=".json" hidden>
 </main>
@@ -119,14 +150,24 @@
 (function () {
   var KEY = "initiative-tracker-v2";
   var OLD_KEY = "initiative-tracker-v1";
+  var CONDITIONS = ["Blinded", "Charmed", "Concentrating", "Deafened", "Frightened", "Grappled",
+    "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained",
+    "Stunned", "Unconscious"];
   var state = { folders: [], encounters: [], activeId: null };
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function blank() { return { init: "", name: "", bonus: 0, hp: "", maxHp: "", ac: "", conditions: [] }; }
+  function fix(c) {
+    // fills in fields that older saved data might not have
+    var b = blank();
+    for (var k in b) if (c[k] === undefined) c[k] = b[k];
+    if (c.maxHp === "" && c.hp !== "") c.maxHp = num(c.hp);
+    return c;
+  }
   function newEncounter(name, folderId) {
     return { id: uid(), name: name, folderId: folderId || null,
-             entries: [blank()], current: -1, round: 1 };
+             entries: [blank()], current: -1, round: 1, notes: "" };
   }
-  function blank() { return { init: "", name: "", bonus: 0, hp: "", ac: "" }; }
   function d20() { return Math.floor(Math.random() * 20) + 1; }
   function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
   function esc(v) {
@@ -141,7 +182,6 @@
       var saved = JSON.parse(localStorage.getItem(KEY));
       if (saved && Array.isArray(saved.encounters)) { state = saved; }
       else {
-        // bring over the table from the first version of this tool, if there is one
         var old = JSON.parse(localStorage.getItem(OLD_KEY));
         if (old && Array.isArray(old.entries)) {
           var e = newEncounter("Encounter 1");
@@ -152,13 +192,17 @@
     } catch (err) {}
     if (!state.folders) state.folders = [];
     if (!state.encounters.length) state.encounters.push(newEncounter("Encounter 1"));
+    state.encounters.forEach(function (e) {
+      e.entries.forEach(fix);
+      if (e.notes === undefined) e.notes = "";
+    });
     if (!enc()) state.activeId = state.encounters[0].id;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   function say(msg) {
     var el = document.getElementById("status");
     el.textContent = msg;
-    setTimeout(function () { if (el.textContent === msg) el.textContent = ""; }, 3000);
+    setTimeout(function () { if (el.textContent === msg) el.textContent = ""; }, 3500);
   }
 
   /* ---------- sidebar ---------- */
@@ -203,25 +247,42 @@
       return '<option value="' + f.id + '"' + (e.folderId === f.id ? " selected" : "") + '>' + esc(f.name) + '</option>';
     }).join("");
     sel.value = e.folderId && byId(state.folders, e.folderId) ? e.folderId : "";
+    document.getElementById("notes").value = e.notes || "";
   }
 
   /* ---------- table ---------- */
+  function isDead(c) { return c.hp !== "" && num(c.hp) <= 0; }
+  function isBloodied(c) { return c.maxHp !== "" && num(c.hp) > 0 && num(c.hp) * 2 <= num(c.maxHp); }
+  function rowClasses(c, i, e) {
+    return (i === e.current ? "current " : "") + (isDead(c) ? "dead " : "") + (isBloodied(c) ? "bloodied" : "");
+  }
+  function condHtml(c) {
+    var chips = c.conditions.map(function (name, k) {
+      return '<span class="chip" data-cond="' + k + '" title="Click to remove">' + esc(name) + ' ✕</span>';
+    }).join("");
+    var opts = '<option value="">+ condition</option>' + CONDITIONS.map(function (n) {
+      return '<option>' + n + '</option>';
+    }).join("") + '<option value="__custom">Custom...</option>';
+    return '<div class="conds">' + chips + '<select class="condsel" data-condsel>' + opts + '</select></div>';
+  }
   function renderTable() {
     var e = enc();
     var tbody = document.getElementById("rows");
     tbody.innerHTML = "";
     if (!e.entries.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">No combatants yet. Click "+ Add".</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">No combatants yet. Fill in the form above and click "+ Add".</td></tr>';
     }
     e.entries.forEach(function (c, i) {
       var tr = document.createElement("tr");
-      if (i === e.current) tr.className = "current";
-      if (c.hp !== "" && num(c.hp) <= 0) tr.className += " dead";
+      tr.className = rowClasses(c, i, e);
       tr.innerHTML =
+        '<td class="grip" title="Drag to reorder">⠿</td>' +
         '<td class="num"><input type="number" data-f="init" value="' + esc(c.init) + '"></td>' +
-        '<td><input type="text" data-f="name" placeholder="Name" value="' + esc(c.name) + '"></td>' +
+        '<td><input type="text" data-f="name" placeholder="Name" value="' + esc(c.name) + '">' + condHtml(c) + '</td>' +
         '<td class="small"><input type="number" data-f="bonus" value="' + esc(c.bonus) + '"></td>' +
-        '<td class="small"><input type="number" data-f="hp" value="' + esc(c.hp) + '"></td>' +
+        '<td class="small hpcell"><input type="text" inputmode="numeric" data-f="hp" ' +
+          'title="Type a number to set HP, or +5 / -7 to heal / damage" value="' + esc(c.hp) + '">' +
+          '<span class="maxhp">' + (c.maxHp !== "" ? "/ " + esc(c.maxHp) : "") + '</span></td>' +
         '<td class="small"><input type="number" data-f="ac" value="' + esc(c.ac) + '"></td>' +
         '<td><div class="rowbtns"><button data-a="roll" title="Roll d20 + bonus">Roll</button>' +
         '<button data-a="del" class="danger" title="Delete">✕</button></div></td>';
@@ -246,16 +307,47 @@
   /* ---------- table events ---------- */
   var tbody = document.getElementById("rows");
   tbody.addEventListener("input", function (ev) {
-    var f = ev.target.dataset.f; if (!f) return;
+    var f = ev.target.dataset.f; if (!f || f === "hp") return;
     var tr = ev.target.closest("tr");
     enc().entries[tr.dataset.i][f] = ev.target.value;
     save();
-    if (f === "hp") tr.classList.toggle("dead", ev.target.value !== "" && num(ev.target.value) <= 0);
     if (f === "name") renderTree();
   });
+  // HP is applied when you finish typing: "12" sets HP, "-7" is damage, "+5" is healing
+  tbody.addEventListener("change", function (ev) {
+    var t = ev.target;
+    if (t.dataset.f === "hp") {
+      var tr = t.closest("tr"), e = enc(), c = e.entries[tr.dataset.i];
+      var v = t.value.trim();
+      if (v === "") { c.hp = ""; c.maxHp = ""; }
+      else if (/^[+-]\d+$/.test(v)) {
+        var hp = num(c.hp) + parseInt(v, 10);
+        if (parseInt(v, 10) > 0 && c.maxHp !== "") hp = Math.min(hp, num(c.maxHp));
+        c.hp = hp;
+      } else if (/^\d+$/.test(v)) {
+        c.hp = parseInt(v, 10);
+        if (c.maxHp === "" || c.hp > num(c.maxHp)) c.maxHp = c.hp;
+      }
+      t.value = c.hp;
+      tr.className = rowClasses(c, +tr.dataset.i, e);
+      tr.querySelector(".maxhp").textContent = c.maxHp !== "" ? "/ " + c.maxHp : "";
+      save();
+    } else if (t.hasAttribute("data-condsel")) {
+      var row = t.closest("tr"), cc = enc().entries[row.dataset.i];
+      var name = t.value;
+      if (name === "__custom") name = (prompt("Condition name:") || "").trim();
+      if (name && cc.conditions.indexOf(name) < 0) cc.conditions.push(name);
+      save(); render();
+    }
+  });
   tbody.addEventListener("click", function (ev) {
-    var a = ev.target.dataset.a; if (!a) return;
     var e = enc();
+    var chip = ev.target.closest(".chip");
+    if (chip) {
+      e.entries[chip.closest("tr").dataset.i].conditions.splice(+chip.dataset.cond, 1);
+      save(); render(); return;
+    }
+    var a = ev.target.dataset.a; if (!a) return;
     var i = +ev.target.closest("tr").dataset.i;
     if (a === "roll") rollOne(e.entries[i]);
     if (a === "del") {
@@ -266,11 +358,68 @@
     save(); render();
   });
 
-  document.getElementById("add").onclick = function () {
-    enc().entries.push(blank()); save(); render();
-    var names = document.querySelectorAll('input[data-f="name"]');
-    names[names.length - 1].focus();
-  };
+  /* drag a row by its handle to reorder */
+  var dragIdx = null;
+  tbody.addEventListener("mousedown", function (ev) {
+    var g = ev.target.closest(".grip");
+    if (g) g.closest("tr").draggable = true;
+  });
+  document.addEventListener("mouseup", function () {
+    Array.prototype.forEach.call(tbody.children, function (r) { r.draggable = false; });
+  });
+  tbody.addEventListener("dragstart", function (ev) {
+    var tr = ev.target.closest("tr"); if (!tr || !tr.draggable) return;
+    dragIdx = +tr.dataset.i;
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", String(dragIdx));
+  });
+  tbody.addEventListener("dragover", function (ev) {
+    if (dragIdx === null) return;
+    ev.preventDefault();
+    var tr = ev.target.closest("tr");
+    Array.prototype.forEach.call(tbody.children, function (r) { r.classList.remove("over"); });
+    if (tr) tr.classList.add("over");
+  });
+  tbody.addEventListener("drop", function (ev) {
+    if (dragIdx === null) return;
+    ev.preventDefault();
+    var tr = ev.target.closest("tr"); if (!tr || tr.dataset.i === undefined) return;
+    var e = enc(), to = +tr.dataset.i, cur = e.current >= 0 ? e.entries[e.current] : null;
+    var item = e.entries.splice(dragIdx, 1)[0];
+    e.entries.splice(to, 0, item);
+    e.current = cur ? e.entries.indexOf(cur) : -1;
+    dragIdx = null; save(); render();
+  });
+  tbody.addEventListener("dragend", function () { dragIdx = null; render(); });
+
+  /* ---------- quick add (with quantity) ---------- */
+  function val(id) { return document.getElementById(id).value.trim(); }
+  function addFromForm() {
+    var e = enc();
+    var base = val("qName"), qty = Math.max(1, Math.min(50, num(val("qQty")) || 1));
+    for (var i = 1; i <= qty; i++) {
+      var c = blank();
+      c.name = qty > 1 ? (base || "Creature") + " " + i : base;
+      c.bonus = num(val("qBonus"));
+      if (val("qHp") !== "") { c.hp = num(val("qHp")); c.maxHp = c.hp; }
+      c.ac = val("qAc");
+      e.entries.push(c);
+    }
+    // drop the starter blank row if it is still empty
+    if (e.entries.length > qty && e.entries[0].name === "" && e.entries[0].hp === "" && e.entries[0].init === "" && e.entries[0].ac === "") {
+      e.entries.shift(); if (e.current > 0) e.current--;
+    }
+    ["qName", "qBonus", "qHp", "qAc"].forEach(function (id) { document.getElementById(id).value = ""; });
+    document.getElementById("qQty").value = 1;
+    save(); render();
+    document.getElementById("qName").focus();
+    say(qty > 1 ? "Added " + qty + " creatures. Use Roll all to roll each one separately." : "");
+  }
+  document.getElementById("add").onclick = addFromForm;
+  document.getElementById("quick").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") addFromForm();
+  });
+
   document.getElementById("rollAll").onclick = function () {
     enc().entries.forEach(rollOne); sortEntries(); save(); render();
   };
@@ -285,12 +434,24 @@
     }
     save(); render();
   };
+  document.getElementById("reset").onclick = function () {
+    var e = enc();
+    if (!confirm('Reset "' + e.name + '"? Initiative rolls, the round counter and conditions are cleared, and HP goes back to full. Names and AC stay.')) return;
+    e.entries.forEach(function (c) {
+      c.init = ""; c.conditions = [];
+      if (c.maxHp !== "") c.hp = c.maxHp;
+    });
+    e.current = -1; e.round = 1; save(); render();
+  };
   document.getElementById("clear").onclick = function () {
     var e = enc();
     if (!e.entries.length || confirm('Clear the table in "' + e.name + '"?')) {
       e.entries = []; e.current = -1; e.round = 1; save(); render();
     }
   };
+  document.getElementById("notes").addEventListener("input", function (ev) {
+    enc().notes = ev.target.value; save();
+  });
 
   /* ---------- encounter + folder events ---------- */
   document.getElementById("newEnc").onclick = function () {
@@ -366,19 +527,20 @@
         var data = JSON.parse(r.result);
         var added = 0;
         if (data && Array.isArray(data.encounters)) {
-          // add imported folders and encounters alongside the current ones (nothing is overwritten)
+          // added alongside the current ones; nothing is overwritten
           var map = {};
           (data.folders || []).forEach(function (fo) {
             var id = uid(); map[fo.id] = id;
             state.folders.push({ id: id, name: fo.name, closed: false });
           });
           data.encounters.forEach(function (e) {
-            e.id = uid(); e.folderId = map[e.folderId] || null; state.encounters.push(e); added++;
+            e.id = uid(); e.folderId = map[e.folderId] || null;
+            e.entries = (e.entries || []).map(fix); if (e.notes === undefined) e.notes = "";
+            state.encounters.push(e); added++;
           });
         } else if (data && Array.isArray(data.entries)) {
-          // file from the first version: a single table
-          var e = newEncounter("Imported");
-          e.entries = data.entries; state.encounters.push(e); added = 1;
+          var e1 = newEncounter("Imported");
+          e1.entries = data.entries.map(fix); state.encounters.push(e1); added = 1;
         } else { throw 0; }
         save(); render(); say("Imported " + added + " encounter(s)");
       } catch (err) { say("That file isn't a valid initiative export."); }
