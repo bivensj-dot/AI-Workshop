@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Initiative Tracker</title>
+<style>
+  :root {
+    --bg: #1b1b1f; --panel: #26262c; --line: #3a3a44; --text: #ececf1;
+    --muted: #9a9aa8; --accent: #c9372c; --accent2: #3b82c4; --good: #3f9b5a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 820px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+           border-radius: 6px; padding: 8px 12px; font-size: .9rem; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  button.blue { background: var(--accent2); border-color: var(--accent2); }
+  button.danger:hover { border-color: var(--accent); color: #ff8a80; }
+  .round { margin-left: auto; color: var(--muted); font-size: .9rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
+       color: var(--muted); padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  tr.current { background: #3a2226; outline: 2px solid var(--accent); outline-offset: -2px; }
+  tr.dead input[type=text] { text-decoration: line-through; opacity: .5; }
+  input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+          border-radius: 5px; padding: 7px 8px; font-size: .95rem; }
+  input:focus { outline: none; border-color: var(--accent2); }
+  input[type=number] { text-align: center; }
+  .num { width: 70px; } .nm { width: auto; } .small { width: 70px; }
+  .rowbtns { display: flex; gap: 4px; white-space: nowrap; }
+  .rowbtns button { padding: 6px 9px; }
+  .empty { color: var(--muted); text-align: center; padding: 28px; }
+  .status { color: var(--good); font-size: .85rem; min-height: 1.2em; margin-top: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Initiative Tracker</h1>
+  <p class="sub">Works offline. Your table is saved in this browser automatically.</p>
+
+  <div class="bar">
+    <button class="primary" id="add">+ Add</button>
+    <button id="rollAll">Roll all</button>
+    <button id="sort">Sort</button>
+    <button class="blue" id="next">Next turn</button>
+    <button id="export">Export</button>
+    <button id="import">Import</button>
+    <button class="danger" id="clear">Clear table</button>
+    <span class="round" id="round"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="num">Init</th><th>Name</th><th class="small">Bonus</th>
+        <th class="small">HP</th><th class="small">AC</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="status" id="status"></div>
+  <input type="file" id="file" accept=".json" hidden>
+</main>
+
+<script>
+(function () {
+  var KEY = "initiative-tracker-v1";
+  var state = { entries: [], current: -1, round: 1 };
+
+  function load() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY));
+      if (saved && Array.isArray(saved.entries)) state = saved;
+    } catch (e) {}
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function say(msg) {
+    var el = document.getElementById("status");
+    el.textContent = msg;
+    setTimeout(function () { if (el.textContent === msg) el.textContent = ""; }, 3000);
+  }
+  function blank() { return { init: "", name: "", bonus: 0, hp: "", ac: "" }; }
+  function d20() { return Math.floor(Math.random() * 20) + 1; }
+  function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+
+  function render() {
+    var tbody = document.getElementById("rows");
+    tbody.innerHTML = "";
+    if (!state.entries.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No combatants yet. Click "+ Add".</td></tr>';
+    }
+    state.entries.forEach(function (e, i) {
+      var tr = document.createElement("tr");
+      if (i === state.current) tr.className = "current";
+      if (e.hp !== "" && num(e.hp) <= 0) tr.className += " dead";
+      tr.innerHTML =
+        '<td class="num"><input type="number" data-f="init" value="' + esc(e.init) + '"></td>' +
+        '<td><input type="text" class="nm" data-f="name" placeholder="Name" value="' + esc(e.name) + '"></td>' +
+        '<td class="small"><input type="number" data-f="bonus" value="' + esc(e.bonus) + '"></td>' +
+        '<td class="small"><input type="number" data-f="hp" value="' + esc(e.hp) + '"></td>' +
+        '<td class="small"><input type="number" data-f="ac" value="' + esc(e.ac) + '"></td>' +
+        '<td><div class="rowbtns"><button data-a="roll" title="Roll d20 + bonus">Roll</button>' +
+        '<button data-a="del" class="danger" title="Delete">✕</button></div></td>';
+      tr.dataset.i = i;
+      tbody.appendChild(tr);
+    });
+    document.getElementById("round").textContent =
+      state.current >= 0 ? "Round " + state.round : "";
+  }
+  function esc(v) {
+    return String(v === undefined || v === null ? "" : v)
+      .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  function rollOne(e) { e.init = d20() + num(e.bonus); }
+  function sortEntries() {
+    var cur = state.current >= 0 ? state.entries[state.current] : null;
+    state.entries.sort(function (a, b) {
+      var d = num(b.init) - num(a.init);
+      return d !== 0 ? d : num(b.bonus) - num(a.bonus);
+    });
+    state.current = cur ? state.entries.indexOf(cur) : -1;
+  }
+
+  var tbody = document.getElementById("rows");
+  tbody.addEventListener("input", function (ev) {
+    var f = ev.target.dataset.f; if (!f) return;
+    var i = ev.target.closest("tr").dataset.i;
+    state.entries[i][f] = f === "name" ? ev.target.value : ev.target.value;
+    save();
+    if (f === "hp") {
+      ev.target.closest("tr").classList.toggle("dead", ev.target.value !== "" && num(ev.target.value) <= 0);
+    }
+  });
+  tbody.addEventListener("click", function (ev) {
+    var a = ev.target.dataset.a; if (!a) return;
+    var i = +ev.target.closest("tr").dataset.i;
+    if (a === "roll") rollOne(state.entries[i]);
+    if (a === "del") {
+      state.entries.splice(i, 1);
+      if (state.current > i) state.current--;
+      else if (state.current === i) state.current = Math.min(i, state.entries.length - 1);
+    }
+    save(); render();
+  });
+
+  document.getElementById("add").onclick = function () {
+    state.entries.push(blank()); save(); render();
+    var names = document.querySelectorAll('input[data-f="name"]');
+    names[names.length - 1].focus();
+  };
+  document.getElementById("rollAll").onclick = function () {
+    state.entries.forEach(rollOne); sortEntries(); save(); render();
+  };
+  document.getElementById("sort").onclick = function () { sortEntries(); save(); render(); };
+  document.getElementById("next").onclick = function () {
+    if (!state.entries.length) return;
+    if (state.current < 0) { state.current = 0; state.round = 1; }
+    else {
+      state.current++;
+      if (state.current >= state.entries.length) { state.current = 0; state.round++; }
+    }
+    save(); render();
+  };
+  document.getElementById("clear").onclick = function () {
+    if (!state.entries.length || confirm("Clear the whole table?")) {
+      state = { entries: [], current: -1, round: 1 }; save(); render();
+    }
+  };
+  document.getElementById("export").onclick = function () {
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "initiative.json"; a.click();
+    URL.revokeObjectURL(a.href);
+    say("Exported to initiative.json");
+  };
+  var file = document.getElementById("file");
+  document.getElementById("import").onclick = function () { file.click(); };
+  file.onchange = function () {
+    var f = file.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var data = JSON.parse(r.result);
+        if (!data || !Array.isArray(data.entries)) throw 0;
+        state = { entries: data.entries, current: data.current >= 0 ? data.current : -1, round: data.round || 1 };
+        save(); render(); say("Imported " + state.entries.length + " entries");
+      } catch (e) { say("That file isn't a valid initiative export."); }
+      file.value = "";
+    };
+    r.readAsText(f);
+  };
+
+  load();
+  if (!state.entries.length) state.entries.push(blank());
+  render();
+})();
+</script>
+</body>
+</html>
