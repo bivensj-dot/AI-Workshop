@@ -10,10 +10,14 @@
     --muted: #9a9aa8; --accent: #c9372c; --accent2: #3b82c4; --good: #3f9b5a;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text);
+  body { margin: 0; background: var(--bg); color: var(--text);
          font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 820px; margin: 0 auto; }
+  .layout { display: flex; min-height: 100vh; }
+  aside { width: 260px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line);
+          padding: 16px 12px; }
+  main { flex: 1; padding: 24px 20px; max-width: 900px; }
   h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
   .sub { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
   .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
   button { background: var(--panel); color: var(--text); border: 1px solid var(--line);
@@ -31,28 +35,67 @@
   tr:last-child td { border-bottom: none; }
   tr.current { background: #3a2226; outline: 2px solid var(--accent); outline-offset: -2px; }
   tr.dead input[type=text] { text-decoration: line-through; opacity: .5; }
-  input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  input, select { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
           border-radius: 5px; padding: 7px 8px; font-size: .95rem; }
-  input:focus { outline: none; border-color: var(--accent2); }
+  input:focus, select:focus { outline: none; border-color: var(--accent2); }
   input[type=number] { text-align: center; }
-  .num { width: 70px; } .nm { width: auto; } .small { width: 70px; }
+  .num { width: 70px; } .small { width: 70px; }
   .rowbtns { display: flex; gap: 4px; white-space: nowrap; }
   .rowbtns button { padding: 6px 9px; }
   .empty { color: var(--muted); text-align: center; padding: 28px; }
   .status { color: var(--good); font-size: .85rem; min-height: 1.2em; margin-top: 10px; }
+
+  /* sidebar */
+  .sidebtns { display: flex; gap: 6px; margin-bottom: 12px; }
+  .sidebtns button { flex: 1; padding: 7px 6px; font-size: .82rem; }
+  .folder { margin-top: 10px; }
+  .fhead { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: .8rem;
+           text-transform: uppercase; letter-spacing: .05em; padding: 4px 0; }
+  .fhead .ftoggle { flex: 1; text-align: left; background: none; border: none; padding: 2px 0;
+                    color: inherit; font-size: inherit; text-transform: inherit; letter-spacing: inherit; }
+  .fhead button.mini { padding: 2px 6px; font-size: .75rem; background: none; border: none; color: var(--muted); }
+  .fhead button.mini:hover { color: var(--text); }
+  .enc { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 7px 10px;
+         background: none; border: 1px solid transparent; border-radius: 6px; }
+  .enc:hover { background: var(--bg); }
+  .enc.active { background: var(--bg); border-color: var(--accent); }
+  .enc .cnt { color: var(--muted); font-size: .75rem; float: right; }
+  .indent { padding-left: 10px; }
+  .head { display: flex; gap: 8px; margin-bottom: 12px; }
+  .head input { font-size: 1.15rem; font-weight: 600; }
+  .head select { width: 190px; flex-shrink: 0; }
+  @media (max-width: 700px) { .layout { flex-direction: column; } aside { width: 100%; border-right: none;
+         border-bottom: 1px solid var(--line); } }
 </style>
 </head>
 <body>
+<div class="layout">
+<aside>
+  <h2>Encounters</h2>
+  <div class="sidebtns">
+    <button class="primary" id="newEnc">+ Encounter</button>
+    <button id="newFolder">+ Folder</button>
+  </div>
+  <div id="tree"></div>
+</aside>
+
 <main>
   <h1>Initiative Tracker</h1>
-  <p class="sub">Works offline. Your table is saved in this browser automatically.</p>
+  <p class="sub">Works offline. Everything is saved in this browser automatically.</p>
+
+  <div class="head">
+    <input type="text" id="encName" placeholder="Encounter name">
+    <select id="encFolder" title="Move this encounter to a folder"></select>
+    <button id="dup" title="Make a copy of this encounter">Duplicate</button>
+    <button class="danger" id="delEnc" title="Delete this encounter">Delete</button>
+  </div>
 
   <div class="bar">
     <button class="primary" id="add">+ Add</button>
     <button id="rollAll">Roll all</button>
     <button id="sort">Sort</button>
     <button class="blue" id="next">Next turn</button>
-    <button id="export">Export</button>
+    <button id="export">Export all</button>
     <button id="import">Import</button>
     <button class="danger" id="clear">Clear table</button>
     <span class="round" id="round"></span>
@@ -70,120 +113,248 @@
   <div class="status" id="status"></div>
   <input type="file" id="file" accept=".json" hidden>
 </main>
+</div>
 
 <script>
 (function () {
-  var KEY = "initiative-tracker-v1";
-  var state = { entries: [], current: -1, round: 1 };
+  var KEY = "initiative-tracker-v2";
+  var OLD_KEY = "initiative-tracker-v1";
+  var state = { folders: [], encounters: [], activeId: null };
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function newEncounter(name, folderId) {
+    return { id: uid(), name: name, folderId: folderId || null,
+             entries: [blank()], current: -1, round: 1 };
+  }
+  function blank() { return { init: "", name: "", bonus: 0, hp: "", ac: "" }; }
+  function d20() { return Math.floor(Math.random() * 20) + 1; }
+  function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+  function esc(v) {
+    return String(v === undefined || v === null ? "" : v)
+      .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+  function byId(list, id) { return list.filter(function (x) { return x.id === id; })[0]; }
+  function enc() { return byId(state.encounters, state.activeId); }
 
   function load() {
     try {
       var saved = JSON.parse(localStorage.getItem(KEY));
-      if (saved && Array.isArray(saved.entries)) state = saved;
-    } catch (e) {}
+      if (saved && Array.isArray(saved.encounters)) { state = saved; }
+      else {
+        // bring over the table from the first version of this tool, if there is one
+        var old = JSON.parse(localStorage.getItem(OLD_KEY));
+        if (old && Array.isArray(old.entries)) {
+          var e = newEncounter("Encounter 1");
+          e.entries = old.entries; e.current = old.current; e.round = old.round || 1;
+          state.encounters.push(e);
+        }
+      }
+    } catch (err) {}
+    if (!state.folders) state.folders = [];
+    if (!state.encounters.length) state.encounters.push(newEncounter("Encounter 1"));
+    if (!enc()) state.activeId = state.encounters[0].id;
   }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
-  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   function say(msg) {
     var el = document.getElementById("status");
     el.textContent = msg;
     setTimeout(function () { if (el.textContent === msg) el.textContent = ""; }, 3000);
   }
-  function blank() { return { init: "", name: "", bonus: 0, hp: "", ac: "" }; }
-  function d20() { return Math.floor(Math.random() * 20) + 1; }
-  function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
 
-  function render() {
+  /* ---------- sidebar ---------- */
+  function encButton(e, indent) {
+    var n = e.entries.filter(function (x) { return x.name; }).length;
+    return '<button class="enc' + (e.id === state.activeId ? " active" : "") + (indent ? " indent" : "") +
+      '" data-enc="' + e.id + '">' + esc(e.name || "Untitled") +
+      '<span class="cnt">' + n + '</span></button>';
+  }
+  function renderTree() {
+    var html = "";
+    state.folders.forEach(function (f) {
+      var kids = state.encounters.filter(function (e) { return e.folderId === f.id; });
+      html += '<div class="folder"><div class="fhead">' +
+        '<button class="ftoggle" data-ftoggle="' + f.id + '">' + (f.closed ? "▸ " : "▾ ") + esc(f.name) + '</button>' +
+        '<button class="mini" data-fnew="' + f.id + '" title="New encounter in this folder">+</button>' +
+        '<button class="mini" data-frename="' + f.id + '" title="Rename folder">✎</button>' +
+        '<button class="mini" data-fdel="' + f.id + '" title="Delete folder">✕</button></div>';
+      if (!f.closed) {
+        kids.forEach(function (e) { html += encButton(e, true); });
+        if (!kids.length) html += '<div class="indent" style="color:var(--muted);font-size:.8rem">Empty</div>';
+      }
+      html += '</div>';
+    });
+    var loose = state.encounters.filter(function (e) {
+      return !e.folderId || !byId(state.folders, e.folderId);
+    });
+    if (loose.length) {
+      html += '<div class="folder">' + (state.folders.length ? '<div class="fhead">Unfiled</div>' : "");
+      loose.forEach(function (e) { html += encButton(e, false); });
+      html += '</div>';
+    }
+    document.getElementById("tree").innerHTML = html;
+  }
+
+  function renderHead() {
+    var e = enc();
+    var nameEl = document.getElementById("encName");
+    if (document.activeElement !== nameEl) nameEl.value = e.name;
+    var sel = document.getElementById("encFolder");
+    sel.innerHTML = '<option value="">Unfiled</option>' + state.folders.map(function (f) {
+      return '<option value="' + f.id + '"' + (e.folderId === f.id ? " selected" : "") + '>' + esc(f.name) + '</option>';
+    }).join("");
+    sel.value = e.folderId && byId(state.folders, e.folderId) ? e.folderId : "";
+  }
+
+  /* ---------- table ---------- */
+  function renderTable() {
+    var e = enc();
     var tbody = document.getElementById("rows");
     tbody.innerHTML = "";
-    if (!state.entries.length) {
+    if (!e.entries.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="empty">No combatants yet. Click "+ Add".</td></tr>';
     }
-    state.entries.forEach(function (e, i) {
+    e.entries.forEach(function (c, i) {
       var tr = document.createElement("tr");
-      if (i === state.current) tr.className = "current";
-      if (e.hp !== "" && num(e.hp) <= 0) tr.className += " dead";
+      if (i === e.current) tr.className = "current";
+      if (c.hp !== "" && num(c.hp) <= 0) tr.className += " dead";
       tr.innerHTML =
-        '<td class="num"><input type="number" data-f="init" value="' + esc(e.init) + '"></td>' +
-        '<td><input type="text" class="nm" data-f="name" placeholder="Name" value="' + esc(e.name) + '"></td>' +
-        '<td class="small"><input type="number" data-f="bonus" value="' + esc(e.bonus) + '"></td>' +
-        '<td class="small"><input type="number" data-f="hp" value="' + esc(e.hp) + '"></td>' +
-        '<td class="small"><input type="number" data-f="ac" value="' + esc(e.ac) + '"></td>' +
+        '<td class="num"><input type="number" data-f="init" value="' + esc(c.init) + '"></td>' +
+        '<td><input type="text" data-f="name" placeholder="Name" value="' + esc(c.name) + '"></td>' +
+        '<td class="small"><input type="number" data-f="bonus" value="' + esc(c.bonus) + '"></td>' +
+        '<td class="small"><input type="number" data-f="hp" value="' + esc(c.hp) + '"></td>' +
+        '<td class="small"><input type="number" data-f="ac" value="' + esc(c.ac) + '"></td>' +
         '<td><div class="rowbtns"><button data-a="roll" title="Roll d20 + bonus">Roll</button>' +
         '<button data-a="del" class="danger" title="Delete">✕</button></div></td>';
       tr.dataset.i = i;
       tbody.appendChild(tr);
     });
-    document.getElementById("round").textContent =
-      state.current >= 0 ? "Round " + state.round : "";
+    document.getElementById("round").textContent = e.current >= 0 ? "Round " + e.round : "";
   }
-  function esc(v) {
-    return String(v === undefined || v === null ? "" : v)
-      .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-  }
+  function render() { renderTree(); renderHead(); renderTable(); }
 
-  function rollOne(e) { e.init = d20() + num(e.bonus); }
+  function rollOne(c) { c.init = d20() + num(c.bonus); }
   function sortEntries() {
-    var cur = state.current >= 0 ? state.entries[state.current] : null;
-    state.entries.sort(function (a, b) {
+    var e = enc();
+    var cur = e.current >= 0 ? e.entries[e.current] : null;
+    e.entries.sort(function (a, b) {
       var d = num(b.init) - num(a.init);
       return d !== 0 ? d : num(b.bonus) - num(a.bonus);
     });
-    state.current = cur ? state.entries.indexOf(cur) : -1;
+    e.current = cur ? e.entries.indexOf(cur) : -1;
   }
 
+  /* ---------- table events ---------- */
   var tbody = document.getElementById("rows");
   tbody.addEventListener("input", function (ev) {
     var f = ev.target.dataset.f; if (!f) return;
-    var i = ev.target.closest("tr").dataset.i;
-    state.entries[i][f] = f === "name" ? ev.target.value : ev.target.value;
+    var tr = ev.target.closest("tr");
+    enc().entries[tr.dataset.i][f] = ev.target.value;
     save();
-    if (f === "hp") {
-      ev.target.closest("tr").classList.toggle("dead", ev.target.value !== "" && num(ev.target.value) <= 0);
-    }
+    if (f === "hp") tr.classList.toggle("dead", ev.target.value !== "" && num(ev.target.value) <= 0);
+    if (f === "name") renderTree();
   });
   tbody.addEventListener("click", function (ev) {
     var a = ev.target.dataset.a; if (!a) return;
+    var e = enc();
     var i = +ev.target.closest("tr").dataset.i;
-    if (a === "roll") rollOne(state.entries[i]);
+    if (a === "roll") rollOne(e.entries[i]);
     if (a === "del") {
-      state.entries.splice(i, 1);
-      if (state.current > i) state.current--;
-      else if (state.current === i) state.current = Math.min(i, state.entries.length - 1);
+      e.entries.splice(i, 1);
+      if (e.current > i) e.current--;
+      else if (e.current === i) e.current = Math.min(i, e.entries.length - 1);
     }
     save(); render();
   });
 
   document.getElementById("add").onclick = function () {
-    state.entries.push(blank()); save(); render();
+    enc().entries.push(blank()); save(); render();
     var names = document.querySelectorAll('input[data-f="name"]');
     names[names.length - 1].focus();
   };
   document.getElementById("rollAll").onclick = function () {
-    state.entries.forEach(rollOne); sortEntries(); save(); render();
+    enc().entries.forEach(rollOne); sortEntries(); save(); render();
   };
   document.getElementById("sort").onclick = function () { sortEntries(); save(); render(); };
   document.getElementById("next").onclick = function () {
-    if (!state.entries.length) return;
-    if (state.current < 0) { state.current = 0; state.round = 1; }
+    var e = enc();
+    if (!e.entries.length) return;
+    if (e.current < 0) { e.current = 0; e.round = 1; }
     else {
-      state.current++;
-      if (state.current >= state.entries.length) { state.current = 0; state.round++; }
+      e.current++;
+      if (e.current >= e.entries.length) { e.current = 0; e.round++; }
     }
     save(); render();
   };
   document.getElementById("clear").onclick = function () {
-    if (!state.entries.length || confirm("Clear the whole table?")) {
-      state = { entries: [], current: -1, round: 1 }; save(); render();
+    var e = enc();
+    if (!e.entries.length || confirm('Clear the table in "' + e.name + '"?')) {
+      e.entries = []; e.current = -1; e.round = 1; save(); render();
     }
   };
+
+  /* ---------- encounter + folder events ---------- */
+  document.getElementById("newEnc").onclick = function () {
+    var cur = enc();
+    var e = newEncounter("Encounter " + (state.encounters.length + 1), cur.folderId);
+    state.encounters.push(e); state.activeId = e.id; save(); render();
+    var n = document.getElementById("encName"); n.focus(); n.select();
+  };
+  document.getElementById("newFolder").onclick = function () {
+    var name = prompt("Folder name:");
+    if (!name) return;
+    state.folders.push({ id: uid(), name: name, closed: false });
+    save(); render();
+  };
+  document.getElementById("encName").addEventListener("input", function (ev) {
+    enc().name = ev.target.value; save(); renderTree();
+  });
+  document.getElementById("encFolder").onchange = function (ev) {
+    enc().folderId = ev.target.value || null; save(); render();
+  };
+  document.getElementById("dup").onclick = function () {
+    var e = enc();
+    var copy = JSON.parse(JSON.stringify(e));
+    copy.id = uid(); copy.name = e.name + " (copy)"; copy.current = -1; copy.round = 1;
+    state.encounters.push(copy); state.activeId = copy.id; save(); render();
+  };
+  document.getElementById("delEnc").onclick = function () {
+    var e = enc();
+    if (!confirm('Delete "' + e.name + '"? This cannot be undone.')) return;
+    state.encounters = state.encounters.filter(function (x) { return x.id !== e.id; });
+    if (!state.encounters.length) state.encounters.push(newEncounter("Encounter 1"));
+    state.activeId = state.encounters[0].id; save(); render();
+  };
+
+  document.getElementById("tree").addEventListener("click", function (ev) {
+    var t = ev.target.closest("button"); if (!t) return;
+    var d = t.dataset;
+    if (d.enc) { state.activeId = d.enc; }
+    else if (d.ftoggle) { var f = byId(state.folders, d.ftoggle); f.closed = !f.closed; }
+    else if (d.fnew) {
+      var e = newEncounter("Encounter " + (state.encounters.length + 1), d.fnew);
+      state.encounters.push(e); state.activeId = e.id;
+    }
+    else if (d.frename) {
+      var fr = byId(state.folders, d.frename);
+      var name = prompt("Rename folder:", fr.name);
+      if (name) fr.name = name;
+    }
+    else if (d.fdel) {
+      var fd = byId(state.folders, d.fdel);
+      if (!confirm('Delete folder "' + fd.name + '"? Its encounters are kept and moved to Unfiled.')) return;
+      state.encounters.forEach(function (x) { if (x.folderId === fd.id) x.folderId = null; });
+      state.folders = state.folders.filter(function (x) { return x.id !== fd.id; });
+    }
+    save(); render();
+  });
+
+  /* ---------- export / import ---------- */
   document.getElementById("export").onclick = function () {
     var blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
     var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = "initiative.json"; a.click();
+    a.href = URL.createObjectURL(blob); a.download = "initiative-encounters.json"; a.click();
     URL.revokeObjectURL(a.href);
-    say("Exported to initiative.json");
+    say("Exported all encounters to initiative-encounters.json");
   };
   var file = document.getElementById("file");
   document.getElementById("import").onclick = function () { file.click(); };
@@ -193,17 +364,31 @@
     r.onload = function () {
       try {
         var data = JSON.parse(r.result);
-        if (!data || !Array.isArray(data.entries)) throw 0;
-        state = { entries: data.entries, current: data.current >= 0 ? data.current : -1, round: data.round || 1 };
-        save(); render(); say("Imported " + state.entries.length + " entries");
-      } catch (e) { say("That file isn't a valid initiative export."); }
+        var added = 0;
+        if (data && Array.isArray(data.encounters)) {
+          // add imported folders and encounters alongside the current ones (nothing is overwritten)
+          var map = {};
+          (data.folders || []).forEach(function (fo) {
+            var id = uid(); map[fo.id] = id;
+            state.folders.push({ id: id, name: fo.name, closed: false });
+          });
+          data.encounters.forEach(function (e) {
+            e.id = uid(); e.folderId = map[e.folderId] || null; state.encounters.push(e); added++;
+          });
+        } else if (data && Array.isArray(data.entries)) {
+          // file from the first version: a single table
+          var e = newEncounter("Imported");
+          e.entries = data.entries; state.encounters.push(e); added = 1;
+        } else { throw 0; }
+        save(); render(); say("Imported " + added + " encounter(s)");
+      } catch (err) { say("That file isn't a valid initiative export."); }
       file.value = "";
     };
     r.readAsText(f);
   };
 
   load();
-  if (!state.entries.length) state.entries.push(blank());
+  save();
   render();
 })();
 </script>
